@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>لوحة تحكم الأدمن</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f6f9; padding: 20px; text-align: center; }
+        .container { background: white; padding: 20px; border-radius: 8px; max-width: 900px; margin: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        th { background: #0056b3; color: white; }
+        .btn-approve { background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .btn-reject { background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>لوحة تحكم الأدمن - إدارة الطلبات</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>رقم الطلب</th>
+                    <th>الرقم الوطني</th>
+                    <th>رقم الهاتف</th>
+                    <th>نوع الخدمة</th>
+                    <th>الحالة</th>
+                    <th>التاريخ</th>
+                    <th>الإجراءات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in requests %}
+                <tr>
+                    <td>{{ req[0] }}</td>
+                    <td>{{ req[1] }}</td>
+                    <td>{{ req[2] }}</td>
+                    <td>{{ req[3] }}</td>
+                    <td><b>{{ req[4] }}</b></td>
+                    <td>{{ req[5] }}</td>
+                    <td>
+                        <button class="btn-approve" onclick="updateStatus('{{ req[0] }}', 'Approved')">قبول</button>
+                        <button class="btn-reject" onclick="updateStatus('{{ req[0] }}', 'Rejected')">رفض</button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7">لا توجد طلبات مسجلة.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <script>
+        function updateStatus(reqId, status) {
+            fetch(`/update_status/${reqId}/${status}`, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => { if (data.status === 'success') location.reload(); });
+        }
+    </script>
+</body>
+</html>

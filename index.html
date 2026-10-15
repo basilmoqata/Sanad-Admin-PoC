@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة سند الذكية - التحقق والأمان</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; text-align: center; padding: 30px; margin: 0; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 420px; margin: 0 auto 20px; }
+        h2 { color: #0056b3; margin-bottom: 15px; }
+        input { width: 90%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; text-align: center; }
+        button { background-color: #28a745; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; margin-top: 10px; width: 95%; }
+        button:hover { background-color: #218838; }
+        .btn-blue { background-color: #0056b3; }
+        .btn-blue:hover { background-color: #004085; }
+        .hidden { display: none; }
+        #result { margin-top: 15px; padding: 10px; border-radius: 6px; background-color: #e9ecef; color: #333; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. شاشة تسجيل الدخول بـ OTP -->
+    <div id="auth-section" class="card">
+        <h2>تسجيل الدخول - سند</h2>
+        <div id="step-1">
+            <input type="text" id="national_id" placeholder="الرقم الوطني (مثال: 9901020304)">
+            <input type="text" id="phone" placeholder="رقم الهاتف (مثال: 0791234567)">
+            <button class="btn-blue" onclick="sendOTP()">إرسال رمز التحقق (OTP)</button>
+        </div>
+
+        <div id="step-2" class="hidden">
+            <p id="otp-hint" style="color: #28a745;"></p>
+            <input type="text" id="otp_code" placeholder="أدخل رمز OTP المكون من 4 أرقام">
+            <button onclick="verifyOTP()">تأكيد الرمز والدخول</button>
+        </div>
+    </div>
+
+    <!-- 2. واجهة سند الصوتية (تظهر بعد نجاح الدخول) -->
+    <div id="voice-section" class="card hidden">
+        <h2>منصة سند الذكية 🎙️</h2>
+        <p id="user-welcome" style="color: #0056b3;"></p>
+        
+        <button onclick="startListening()">🎤 التحدث مع سند</button>
+        <br><br>
+        <input type="text" id="manual_text" placeholder="أو اكتب طلبك هنا (مثال: بدي أجدد الهوية)">
+        <button class="btn-blue" onclick="sendManualText()">إرسال الطلب</button>
+
+        <div id="result">في انتظار طلبك الصوتي أو الكتابي...</div>
+    </div>
+
+    <script>
+        function sendOTP() {
+            const national_id = document.getElementById('national_id').value;
+            const phone = document.getElementById('phone').value;
+
+            fetch('/send-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ national_id, phone })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('step-1').classList.add('hidden');
+                    document.getElementById('step-2').classList.remove('hidden');
+                    document.getElementById('otp-hint').innerText = `رمز التجربة التوضيحي هو: (${data.debug_otp})`;
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+
+        function verifyOTP() {
+            const otp = document.getElementById('otp_code').value;
+
+            fetch('/verify-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ otp })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('auth-section').classList.add('hidden');
+                    document.getElementById('voice-section').classList.remove('hidden');
+                    document.getElementById('user-welcome').innerText = `مرحباً بك، الرقم الوطني: ${data.national_id}`;
+                    speakText("تم التحقق بنجاح، أهلاً بك في منصة سند. كيف يمكنني مساعدتك اليوم؟");
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+
+        function processRequest(text) {
+            document.getElementById('result').innerText = "جاري المعالجة: " + text;
+
+            fetch('/process_request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('result').innerText = data.response;
+                speakText(data.response);
+            });
+        }
+
+        function sendManualText() {
+            const text = document.getElementById('manual_text').value;
+            if(text) processRequest(text);
+        }
+
+        function startListening() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("المتصفح لا يدعم التسجيل الصوتي المباشر، جرب الخيار الكتابي.");
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'ar-JO';
+            recognition.onstart = () => { document.getElementById('result').innerText = "جاري الاستماع إليك..."; };
+            
+            recognition.onresult = (event) => {
+                const text = event.results[0][0].transcript;
+                processRequest(text);
+            };
+
+            recognition.start();
+        }
+
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ar-SA';
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+    </script>
+</body>
+</html>
